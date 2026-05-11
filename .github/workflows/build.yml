@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -37,34 +40,19 @@ jobs:
           --uac-admin `
           pronet_client_fixer.py
 
-    - name: EXE'yi Yükle (Artifact)
+    - name: EXE Artifact Yukle
       uses: actions/upload-artifact@v4
       with:
         name: ProNet-Client-Fixer-v01
-        path: dist/ProNet Client Fixer v01.exe
-        retention-days: 30
+        path: "dist/ProNet Client Fixer v01.exe"
+        retention-days: 90
 
-    - name: Release Oluştur
+    - name: Release Olustur
       uses: softprops/action-gh-release@v2
-      if: github.ref == 'refs/heads/main'
       with:
-        tag_name: v0.1
-        name: ProNet Client Fixer v.01
-        body: |
-          ## ProNet Client Fixer v.01
-          
-          Tek tıkla çalışır, hiçbir kurulum gerekmez.
-          
-          ### Özellikler
-          - Windows Defender dışlama yönetimi
-          - DEP (Veri Yürütme Engellemesi) kapatma
-          - VC++, DirectX bağımlılık kontrolü
-          - Silkroad client dosya tarama
-          - WebView2 yeniden kurma
-          - Güvenlik duvarı kural yönetimi
-          - Ağ gecikme testi
-        files: dist/ProNet Client Fixer v01.exe
+        tag_name: "v0.1.${{ github.run_number }}"
+        name: "ProNet Client Fixer v.01"
+        body: "Tek tikla calisir, hicbir kurulum gerekmez. Indir, cift tikla, yonetici onayi ver, kullan."
+        files: "dist/ProNet Client Fixer v01.exe"
         draft: false
         prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
