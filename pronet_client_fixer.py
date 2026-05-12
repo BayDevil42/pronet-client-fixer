@@ -1150,87 +1150,169 @@ class ProNetFixer(tk.Tk):
         self.pass_entry.config(show="" if self.show_pass_var.get() else "●")
 
     def _do_autologin(self):
-        import ctypes
         exe    = self.autologin_launcher_var.get().strip()
         user   = self.autologin_user_var.get().strip()
         passwd = self.autologin_pass_var.get()
-        char   = self.autologin_char_var.get()
-        try: delay=int(self.autologin_delay_var.get())
-        except: delay=5
+        try: char = int(self.autologin_char_var.get())
+        except: char = 1
+        try: delay = int(self.autologin_delay_var.get())
+        except: delay = 6
 
         # Bilgileri kaydet
         if self.autologin_save_var.get():
             self.settings.update({
                 "autologin_launcher":exe,"autologin_user":user,
-                "autologin_pass":passwd,"autologin_char":char,
+                "autologin_pass":passwd,"autologin_char":str(char),
                 "autologin_delay":str(delay),"autologin_save":True
             })
             save_settings(self.settings)
 
         if not exe:
             self.after(0,lambda:self.autologin_status.config(
-                text="⚠ Launcher .exe seçilmedi!" if self.lang=="tr" else "⚠ Launcher .exe not selected!",
-                fg=self.C["RED"])); return
+                text="⚠ Launcher .exe seçilmedi!",fg=self.C["RED"])); return
         if not os.path.exists(exe):
             self.after(0,lambda:self.autologin_status.config(
                 text=f"⚠ Dosya bulunamadı: {exe}",fg=self.C["RED"])); return
         if not user:
             self.after(0,lambda:self.autologin_status.config(
-                text="⚠ Kullanıcı adı boş!" if self.lang=="tr" else "⚠ Username is empty!",
-                fg=self.C["RED"])); return
+                text="⚠ Kullanıcı adı boş!",fg=self.C["RED"])); return
 
-        self.after(0,lambda:self.autologin_status.config(
-            text=f"⏳ Launcher açılıyor…" if self.lang=="tr" else "⏳ Opening launcher…",
-            fg=self.C["YELLOW"]))
-        self.log(f"Oto giriş başlatıldı: {user}","info")
+        def _status(msg, col="YELLOW"):
+            self.after(0, lambda m=msg,c=col:
+                self.autologin_status.config(text=m, fg=self.C[c]))
 
-        try:
-            # Launcher'ı başlat
-            proc=subprocess.Popen([exe],cwd=os.path.dirname(exe))
-            self.log(f"Launcher açıldı, {delay} saniye bekleniyor…","info")
-            self.after(0,lambda:self.autologin_status.config(
-                text=f"⏳ Launcher açıldı, {delay}sn bekleniyor…",fg=self.C["YELLOW"]))
-            time.sleep(delay)
+        def _clip_paste(text):
+            """Metni panoya kopyalayıp Ctrl+V ile yapıştır (Türkçe karakter sorunu yok)"""
+            import tkinter as _tk
+            r = _tk.Tk(); r.withdraw()
+            r.clipboard_clear(); r.clipboard_append(text); r.update()
+            import pyautogui; pyautogui.hotkey('ctrl','v')
+            r.destroy()
 
-            # pyautogui yoksa sadece subprocess ile dene
+        def _find_window(keywords, tries=20, wait=0.5):
+            """Anahtar kelimeyle pencere bul, hwnd döndür"""
+            import win32gui
+            hwnd = None
+            for _ in range(tries):
+                def _cb(h, _):
+                    nonlocal hwnd
+                    t = win32gui.GetWindowText(h).lower()
+                    if win32gui.IsWindowVisible(h) and any(k in t for k in keywords):
+                        hwnd = h
+                win32gui.EnumWindows(_cb, None)
+                if hwnd: break
+                time.sleep(wait)
+            return hwnd
+
+        def _bring_front(hwnd):
+            import win32gui, win32con
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd)
+            time.sleep(0.6)
+
+        def _win_rect(hwnd):
+            import win32gui
+            r = win32gui.GetWindowRect(hwnd)
+            return r[0], r[1], r[2]-r[0], r[3]-r[1]  # x,y,w,h
+
+        def _run():
             try:
-                import pyautogui
-                pyautogui.FAILSAFE=False
-                pyautogui.PAUSE=0.3
+                import pyautogui, win32gui, win32con
+                pyautogui.FAILSAFE = False
+                pyautogui.PAUSE    = 0.15
 
-                # Kullanıcı adı ve şifre gir
-                pyautogui.hotkey('ctrl','a')
-                pyautogui.typewrite(user,interval=0.05)
-                pyautogui.press('tab')
-                time.sleep(0.3)
-                pyautogui.hotkey('ctrl','a')
-                pyautogui.typewrite(passwd,interval=0.05)
-                pyautogui.press('enter')
-                time.sleep(3)
+                # ── 1. EXE başlat ──
+                _status("⏳ Launcher açılıyor…")
+                self.log(f"Launcher başlatıldı, {delay}sn bekleniyor…","info")
+                subprocess.Popen([exe], cwd=os.path.dirname(exe))
+                time.sleep(delay)
 
-                # Karakter seçimi (slot numarası kadar F tuşu veya klik)
-                slot=int(char)-1
-                self.log(f"Karakter slot {char} seçiliyor…","info")
-                for _ in range(slot): pyautogui.press('right')
-                time.sleep(0.5)
-                pyautogui.press('enter')
+                # ── 2. Login penceresini bul ──
+                _status("🔍 Pencere aranıyor…")
+                kw = ["silkroad","sro","launcher","elemon","pronet","light sro","lightsro"]
+                hwnd = _find_window(kw, tries=24, wait=0.5)
+                if not hwnd:
+                    _status("✕ Pencere bulunamadı! Bekleme süresini artırın.","RED")
+                    self.log("Launcher penceresi bulunamadı.","err"); return
 
-                self.after(0,lambda:self.autologin_status.config(
-                    text="✓ Oto giriş tamamlandı!" if self.lang=="tr" else "✓ Auto login completed!",
-                    fg=self.C["GREEN"]))
+                _bring_front(hwnd)
+                wx, wy, ww, wh = _win_rect(hwnd)
+                self.log(f"Pencere: {ww}x{wh} @ ({wx},{wy})","ok")
+
+                # ── 3. Login ekranı koordinatları ──
+                # Silkroad login penceresi yaklaşık 470x400
+                # ID kutusu merkezi: x=~250/470, y=~122/400
+                # PW kutusu merkezi: x=~250/470, y=~148/400
+                # LOGIN butonu:      x=~160/470, y=~325/400
+                def _px(rx, ry):  # relative (0-1) → absolute pixel
+                    return int(wx + ww * rx), int(wy + wh * ry)
+
+                id_pos    = _px(0.535, 0.305)
+                pw_pos    = _px(0.535, 0.370)
+                login_pos = _px(0.340, 0.813)
+
+                # ── 4. ID yaz ──
+                _status("⌨ ID yazılıyor…")
+                pyautogui.click(*id_pos); time.sleep(0.3)
+                pyautogui.hotkey('ctrl','a'); time.sleep(0.1)
+                _clip_paste(user); time.sleep(0.3)
+
+                # ── 5. PW yaz ──
+                _status("⌨ Şifre yazılıyor…")
+                pyautogui.click(*pw_pos); time.sleep(0.3)
+                pyautogui.hotkey('ctrl','a'); time.sleep(0.1)
+                _clip_paste(passwd); time.sleep(0.3)
+
+                # ── 6. Login butonu ──
+                _status("🖱 Login'e tıklanıyor…")
+                pyautogui.click(*login_pos)
+                self.log("Login butonuna tıklandı, sunucu bekleniyor…","info")
+                time.sleep(8)  # sunucu bağlantısı + karakter ekranı yükleme
+
+                # ── 7. Karakter ekranını bul ──
+                _status("🎮 Karakter ekranı bekleniyor…")
+                hwnd2 = _find_window(kw, tries=20, wait=1)
+                if hwnd2:
+                    _bring_front(hwnd2)
+                    gx, gy, gw, gh = _win_rect(hwnd2)
+                else:
+                    gx, gy = wx, wy
+                    gw, gh = ww, wh
+
+                self.log(f"Karakter ekranı: {gw}x{gh}, slot {char} seçiliyor","info")
+
+                # Silkroad 4 karakter slotu — ekranın orta-alt bölgesinde yan yana
+                # Slot pozisyonları (pencere genişliğine göre yüzde)
+                slot_x_ratios = {1: 0.22, 2: 0.38, 3: 0.54, 4: 0.70}
+                slot_y_ratio  = 0.52
+
+                sx = int(gx + gw * slot_x_ratios.get(char, 0.22))
+                sy = int(gy + gh * slot_y_ratio)
+
+                # Karaktere tıkla (seç)
+                _status(f"🎮 Slot {char} seçiliyor…")
+                pyautogui.click(sx, sy); time.sleep(0.6)
+                pyautogui.click(sx, sy); time.sleep(0.5)
+
+                # ── 8. Start butonu ──
+                # Start butonu genellikle ekran ortasının altında
+                start_x = int(gx + gw * 0.50)
+                start_y = int(gy + gh * 0.84)
+                _status("▶ Start butonuna basılıyor…")
+                pyautogui.click(start_x, start_y); time.sleep(0.4)
+                pyautogui.click(start_x, start_y)
+
+                _status("✓ Oto giriş tamamlandı! Oyun yükleniyor…","GREEN")
                 self.log("Oto giriş tamamlandı!","ok")
 
-            except ImportError:
-                # pyautogui yoksa sadece launcher açıldı bildirimi
-                self.after(0,lambda:self.autologin_status.config(
-                    text="✓ Launcher açıldı. (Otomatik yazma için pyautogui gerekli)" if self.lang=="tr"
-                    else "✓ Launcher opened. (pyautogui required for auto-type)",
-                    fg=self.C["YELLOW"]))
-                self.log("Launcher açıldı. pyautogui kurulu değil, manuel giriş gerekiyor.","warn")
+            except ImportError as ie:
+                _status("⚠ Eksik kütüphane: pyautogui / pywin32","RED")
+                self.log(f"Eksik kütüphane: {ie}","err")
+            except Exception as e:
+                _status(f"✕ Hata: {e}","RED")
+                self.log(f"Oto giriş hatası: {e}","err")
 
-        except Exception as e:
-            self.after(0,lambda:self.autologin_status.config(text=f"✕ Hata: {e}",fg=self.C["RED"]))
-            self.log(f"Oto giriş hatası: {e}","err")
+        threading.Thread(target=_run, daemon=True).start()
 
     def _launch_game_simple(self):
         exe=self.autologin_launcher_var.get().strip() or self.launcher_var.get().strip()
