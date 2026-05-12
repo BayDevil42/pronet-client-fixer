@@ -22,7 +22,7 @@ jobs:
         python-version: '3.11'
 
     - name: PyInstaller ve Bağımlılıklar Kur
-      run: pip install pyinstaller pyautogui
+      run: pip install pyinstaller pyautogui pywin32
 
     - name: EXE Derle
       run: |
@@ -37,6 +37,9 @@ jobs:
           --hidden-import=tkinter.filedialog `
           --hidden-import=tkinter.messagebox `
           --hidden-import=pyautogui `
+          --hidden-import=win32gui `
+          --hidden-import=win32con `
+          --hidden-import=win32api `
           --hidden-import=pynput `
           --uac-admin `
           pronet_client_fixer.py
