@@ -29,7 +29,7 @@ jobs:
         pyinstaller `
           --onefile `
           --windowed `
-          --name "ProNet Client Fixer v01" `
+          --name "ProNet Client Fixer v02" `
           --hidden-import=winreg `
           --hidden-import=ctypes `
           --hidden-import=tkinter `
@@ -43,16 +43,28 @@ jobs:
     - name: EXE Artifact Yukle
       uses: actions/upload-artifact@v4
       with:
-        name: ProNet-Client-Fixer-v01
-        path: "dist/ProNet Client Fixer v01.exe"
+        name: ProNet-Client-Fixer-v02
+        path: "dist/ProNet Client Fixer v02.exe"
         retention-days: 90
 
     - name: Release Olustur
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: "v0.1.${{ github.run_number }}"
-        name: "ProNet Client Fixer v.01"
-        body: "Tek tikla calisir, hicbir kurulum gerekmez. Indir, cift tikla, yonetici onayi ver, kullan."
-        files: "dist/ProNet Client Fixer v01.exe"
+        tag_name: "v0.2.${{ github.run_number }}"
+        name: "ProNet Client Fixer v.02"
+        body: |
+          ## ProNet Client Fixer v.02
+          
+          **Yeni Özellikler:**
+          - Türkçe / İngilizce dil desteği
+          - Karanlık / Aydınlık tema
+          - Canlı ping monitörü (gerçek zamanlı grafik)
+          - Sunucu durumu kontrolü (online/offline)
+          - Otomatik oyun başlatıcı (ön kontrol ile)
+          - Profil kaydetme / yükleme
+          - Ayarlar otomatik kaydedilir
+          
+          Tek tıkla çalışır, hiçbir kurulum gerekmez.
+        files: "dist/ProNet Client Fixer v02.exe"
         draft: false
         prerelease: false
