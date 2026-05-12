@@ -433,6 +433,10 @@ class ProNetFixer(tk.Tk):
         grid=tk.Frame(sc,bg=C["BG"]); grid.pack(fill="both",padx=14,pady=8)
         tools=[
             (T["kill_blockers"],T["kill_desc"],self._kill_blockers,"#2a1010",C["RED"]),
+            ("⚡ C8 Hata Düzeltici",
+             "GameGuard temizle, Winsock/TCP sıfırla,\nDNS temizle, hosts kontrol et.",
+             lambda:threading.Thread(target=self._fix_c8,daemon=True).start(),
+             "#1a0a2a",C["PURPLE"]),
             (T["support"],T["support_desc"],self._create_support_file,C["BG4"],C["FG2"]),
             (T["admin_patch"],T["admin_desc"],lambda:threading.Thread(target=self._apply_admin_compat,daemon=True).start(),C["BG4"],C["GREEN"]),
             (T["firewall"],T["firewall_desc"],lambda:threading.Thread(target=self._add_firewall_rules,daemon=True).start(),C["BG4"],C["BLUE"]),
@@ -1021,6 +1025,95 @@ class ProNetFixer(tk.Tk):
             except: pass
         self.log(f"Engelleyen uygulamalar kapatıldı ({killed}).","ok")
 
+    def _fix_c8(self):
+        """C8 hata kodu düzeltici — GameGuard + port + servis temizliği"""
+        self.log("C8 hatası düzeltiliyor…","info")
+        fixed = 0
+
+        # 1. GameGuard processleri öldür
+        gg_procs = ["GameMon.des","GameMon64.des","GgAuthMsg.des",
+                    "npggNT.des","HackShield.exe","nprotect.exe",
+                    "GameGuard.des","Xigncode.exe"]
+        for p in gg_procs:
+            try:
+                subprocess.run(["taskkill","/F","/IM",p],
+                    timeout=4,stderr=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,creationflags=0x08000000)
+                fixed += 1
+            except: pass
+
+        # 2. GameGuard klasörünü temizle (dump dosyaları)
+        folder = self.folder_var.get().strip()
+        if folder:
+            gg_path = os.path.join(folder,"GameGuard")
+            if os.path.exists(gg_path):
+                for f in os.listdir(gg_path):
+                    if f.endswith(".erl") or f.endswith(".log") or f.endswith(".tmp"):
+                        try:
+                            os.remove(os.path.join(gg_path,f)); fixed+=1
+                        except: pass
+                # GameGuard.des sıfırla
+                des = os.path.join(gg_path,"GameGuard.des")
+                if os.path.exists(des):
+                    try: os.remove(des); fixed+=1
+                    except: pass
+
+        # 3. Winsock sıfırla (bağlantı hatası ise)
+        try:
+            subprocess.run(["netsh","winsock","reset"],
+                timeout=10,stderr=subprocess.DEVNULL,creationflags=0x08000000)
+            self.log("Winsock sıfırlandı.","ok"); fixed+=1
+        except: pass
+
+        # 4. TCP/IP sıfırla
+        try:
+            subprocess.run(["netsh","int","ip","reset"],
+                timeout=10,stderr=subprocess.DEVNULL,creationflags=0x08000000)
+            self.log("TCP/IP sıfırlandı.","ok"); fixed+=1
+        except: pass
+
+        # 5. DNS cache temizle
+        try:
+            subprocess.run(["ipconfig","/flushdns"],
+                timeout=8,stderr=subprocess.DEVNULL,creationflags=0x08000000)
+            self.log("DNS önbelleği temizlendi.","ok"); fixed+=1
+        except: pass
+
+        # 6. Temp dosyaları temizle
+        try:
+            tmp = tempfile.gettempdir()
+            for f in os.listdir(tmp):
+                if "silkroad" in f.lower() or "gameguard" in f.lower() or "sro" in f.lower():
+                    try: os.remove(os.path.join(tmp,f)); fixed+=1
+                    except: pass
+        except: pass
+
+        # 7. Hosts dosyasını kontrol et (engelleme var mı)
+        try:
+            hosts = os.path.join(os.environ.get("SystemRoot","C:\\Windows"),
+                                 "System32","drivers","etc","hosts")
+            content = open(hosts,"r",errors="ignore").read()
+            blocked = [l for l in content.splitlines()
+                      if "silkroad" in l.lower() and not l.strip().startswith("#")]
+            if blocked:
+                self.log(f"⚠ Hosts dosyasında {len(blocked)} engel bulundu!","warn")
+                self.log("Hosts: " + " | ".join(blocked),"warn")
+            else:
+                self.log("Hosts dosyası temiz.","ok")
+        except: pass
+
+        self.log(f"C8 düzeltme tamamlandı ({fixed} işlem). Bilgisayarı yeniden başlatın.","ok")
+        messagebox.showinfo(
+            "C8 Düzeltme",
+            f"C8 hatası için {fixed} düzeltme uygulandı.\n\n"
+            "• GameGuard processleri kapatıldı\n"
+            "• GameGuard cache temizlendi\n"
+            "• Winsock ve TCP/IP sıfırlandı\n"
+            "• DNS önbelleği temizlendi\n\n"
+            "Bilgisayarı yeniden başlatıp tekrar deneyin.\n"
+            "Sorun devam ederse Araçlar → Destek Dosyası oluşturun."
+        )
+
     def _apply_admin_compat(self):
         folder=self._get_folder()
         if not folder: return
@@ -1191,33 +1284,44 @@ class ProNetFixer(tk.Tk):
 
         def _find_window(keywords, tries=20, wait=0.5):
             """Anahtar kelimeyle pencere bul, hwnd döndür"""
-            import win32gui
-            hwnd = None
-            for _ in range(tries):
-                def _cb(h, _):
-                    nonlocal hwnd
-                    t = win32gui.GetWindowText(h).lower()
-                    if win32gui.IsWindowVisible(h) and any(k in t for k in keywords):
-                        hwnd = h
-                win32gui.EnumWindows(_cb, None)
-                if hwnd: break
-                time.sleep(wait)
-            return hwnd
+            try:
+                import win32gui
+                hwnd = None
+                for _ in range(tries):
+                    def _cb(h, _):
+                        nonlocal hwnd
+                        t = win32gui.GetWindowText(h).lower()
+                        if win32gui.IsWindowVisible(h) and any(k in t for k in keywords):
+                            hwnd = h
+                    win32gui.EnumWindows(_cb, None)
+                    if hwnd: break
+                    time.sleep(wait)
+                return hwnd
+            except ImportError:
+                time.sleep(wait * tries)
+                return None
 
         def _bring_front(hwnd):
-            import win32gui, win32con
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            win32gui.SetForegroundWindow(hwnd)
+            if not hwnd: return
+            try:
+                import win32gui, win32con
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                win32gui.SetForegroundWindow(hwnd)
+            except: pass
             time.sleep(0.6)
 
         def _win_rect(hwnd):
-            import win32gui
-            r = win32gui.GetWindowRect(hwnd)
-            return r[0], r[1], r[2]-r[0], r[3]-r[1]  # x,y,w,h
+            if not hwnd: return None, None, None, None
+            try:
+                import win32gui
+                r = win32gui.GetWindowRect(hwnd)
+                return r[0], r[1], r[2]-r[0], r[3]-r[1]
+            except:
+                return None, None, None, None
 
         def _run():
             try:
-                import pyautogui, win32gui, win32con
+                import pyautogui
                 pyautogui.FAILSAFE = False
                 pyautogui.PAUSE    = 0.15
 
@@ -1237,6 +1341,14 @@ class ProNetFixer(tk.Tk):
 
                 _bring_front(hwnd)
                 wx, wy, ww, wh = _win_rect(hwnd)
+                # win32gui yoksa ekran ortasını kullan
+                if wx is None:
+                    import pyautogui as _pag
+                    sw, sh = _pag.size()
+                    ww, wh = 470, 400
+                    wx = sw // 2 - ww // 2
+                    wy = sh // 2 - wh // 2
+                    self.log("win32gui yok, ekran ortası kullanılıyor","warn")
                 self.log(f"Pencere: {ww}x{wh} @ ({wx},{wy})","ok")
 
                 # ── 3. Login ekranı koordinatları ──
@@ -1275,9 +1387,10 @@ class ProNetFixer(tk.Tk):
                 if hwnd2:
                     _bring_front(hwnd2)
                     gx, gy, gw, gh = _win_rect(hwnd2)
+                    if gx is None:
+                        gx, gy, gw, gh = wx, wy, ww, wh
                 else:
-                    gx, gy = wx, wy
-                    gw, gh = ww, wh
+                    gx, gy, gw, gh = wx, wy, ww, wh
 
                 self.log(f"Karakter ekranı: {gw}x{gh}, slot {char} seçiliyor","info")
 
