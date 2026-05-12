@@ -53,7 +53,7 @@ LANG = {
         "defender":"Defender","dep":"DEP","deps":"Bağımlılıklar","webview2":"WebView2",
         "tab_defender":"🛡  Defender","tab_dep":"⚙  DEP","tab_deps":"📦  Bağımlılıklar",
         "tab_client":"🎮  Client","tab_wv2":"🌐  WebView2","tab_tools":"🔧  Araçlar",
-        "tab_net":"📡  Ağ Testi","tab_server":"🖥  Sunucu","tab_launcher":"🚀  Launcher",
+        "tab_net":"📡  Ağ Testi","tab_server":"🔑  Oto Login","tab_launcher":"🚀  Launcher",
         "tab_help":"❓  Yardım",
         "scan":"🔍 Tara","revert":"↩ Geri Al","start":"▶  Kurulumu Başlat","close":"✕ Kapat",
         "log_title":"📋  İŞLEM GÜNLÜĞÜ","clear":"Temizle",
@@ -77,7 +77,7 @@ LANG = {
         "update_check":"🔄 Güncelleme Kontrolü","update_desc":"Yeni sürüm varsa bildirim gösterilir.\nŞu anki sürüm: v.02",
         "run":"Çalıştır",
         "ping_monitor":"📡 Canlı Ping Monitörü","start_monitor":"▶ Monitörü Başlat","stop_monitor":"⏹ Durdur",
-        "server_status":"🖥 Sunucu Durumu","check_server":"Kontrol Et","online":"🟢 Çevrimiçi","offline":"🔴 Çevrimdışı",
+        "server_status":"🔑 Oto Login","check_server":"Bağlan","online":"🟢 Çevrimiçi","offline":"🔴 Çevrimdışı",
         "launcher_title":"🚀 Oyun Başlatıcı","launcher_desc":"Oyunu başlatmadan önce tüm kontroller yapılır.",
         "launcher_exe":"Launcher .exe:","launcher_browse":"Seç","launch_btn":"🚀 Oyunu Başlat",
         "pre_check":"Başlatmadan önce otomatik kontrol yap",
@@ -116,7 +116,7 @@ LANG = {
         "defender":"Defender","dep":"DEP","deps":"Dependencies","webview2":"WebView2",
         "tab_defender":"🛡  Defender","tab_dep":"⚙  DEP","tab_deps":"📦  Dependencies",
         "tab_client":"🎮  Client","tab_wv2":"🌐  WebView2","tab_tools":"🔧  Tools",
-        "tab_net":"📡  Network","tab_server":"🖥  Server","tab_launcher":"🚀  Launcher",
+        "tab_net":"📡  Network","tab_server":"🔑  Auto Login","tab_launcher":"🚀  Launcher",
         "tab_help":"❓  Help",
         "scan":"🔍 Scan","revert":"↩ Revert","start":"▶  Start Setup","close":"✕ Close",
         "log_title":"📋  OPERATION LOG","clear":"Clear",
@@ -140,7 +140,7 @@ LANG = {
         "update_check":"🔄 Check for Updates","update_desc":"Notifies if a new version is available.\nCurrent version: v.02",
         "run":"Run",
         "ping_monitor":"📡 Live Ping Monitor","start_monitor":"▶ Start Monitor","stop_monitor":"⏹ Stop",
-        "server_status":"🖥 Server Status","check_server":"Check","online":"🟢 Online","offline":"🔴 Offline",
+        "server_status":"🔑 Auto Login","check_server":"Connect","online":"🟢 Online","offline":"🔴 Offline",
         "launcher_title":"🚀 Game Launcher","launcher_desc":"All checks are performed before launching the game.",
         "launcher_exe":"Launcher .exe:","launcher_browse":"Select","launch_btn":"🚀 Launch Game",
         "pre_check":"Auto-check before launching",
@@ -512,25 +512,119 @@ class ProNetFixer(tk.Tk):
     def _build_server_tab(self):
         C,T = self.C,self.T
         sc = self._scrollable(self.tabs["server"])
-        c=self._card(sc,"🖥  SUNUCU YÖNETİMİ" if self.lang=="tr" else "🖥  SERVER MANAGEMENT")
 
-        # Sunucu ekle
-        add_row=tk.Frame(c,bg=C["BG3"]); add_row.pack(fill="x",pady=(0,10))
-        tk.Label(add_row,text=T["server_host"],bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",9)).pack(side="left")
-        self.new_server_host=tk.StringVar()
-        tk.Entry(add_row,textvariable=self.new_server_host,bg=C["BG"],fg=C["FG"],
-            insertbackground=C["FG"],font=("Consolas",9),relief="flat",
-            highlightthickness=1,highlightbackground=C["BORDER"],width=22).pack(side="left",padx=6,ipady=3)
-        tk.Label(add_row,text=T["server_port"],bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",9)).pack(side="left")
-        self.new_server_port=tk.StringVar(value="15779")
-        tk.Entry(add_row,textvariable=self.new_server_port,bg=C["BG"],fg=C["FG"],
-            insertbackground=C["FG"],font=("Consolas",9),relief="flat",
-            highlightthickness=1,highlightbackground=C["BORDER"],width=7).pack(side="left",padx=6,ipady=3)
-        self._mkbtn(add_row,T["add_server"],self._add_server,C["BG4"],C["GREEN"]).pack(side="left",padx=4)
+        # ── Dosya Seçimi ──
+        c=self._card(sc,"🔑  OTO GİRİŞ" if self.lang=="tr" else "🔑  AUTO LOGIN")
 
-        # Sunucu listesi
-        self.server_list_frame=tk.Frame(c,bg=C["BG3"]); self.server_list_frame.pack(fill="x")
-        self._refresh_server_list()
+        desc_tr="Launcher veya sro_client.exe dosyasını seçin, giriş bilgilerini girin.\nProgram dosyayı açar ve kullanıcı adı + şifreyi otomatik yazar."
+        desc_en="Select Launcher or sro_client.exe, enter your credentials.\nThe program opens the file and automatically types username & password."
+        tk.Label(c,text=desc_tr if self.lang=="tr" else desc_en,
+            bg=C["BG3"],fg=C["FG2"],font=("Segoe UI",8),justify="left").pack(anchor="w",pady=(0,12))
+
+        lbl_w=15
+
+        # ── Dosya seç butonları ──
+        file_card=tk.Frame(c,bg=C["BG3"]); file_card.pack(fill="x",pady=(0,10))
+        tk.Label(file_card,text="Oyun Dosyası:" if self.lang=="tr" else "Game File:",
+            bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",9),width=lbl_w,anchor="w").pack(side="left")
+
+        self.autologin_launcher_var=tk.StringVar(value=self.settings.get("autologin_launcher",""))
+        path_entry=tk.Entry(file_card,textvariable=self.autologin_launcher_var,
+            bg=C["BG"],fg=C["FG"],insertbackground=C["FG"],font=("Consolas",8),
+            relief="flat",highlightthickness=1,highlightbackground=C["BORDER"],
+            state="readonly")
+        path_entry.pack(side="left",fill="x",expand=True,padx=6,ipady=4)
+
+        # Launcher ve Client seç butonları yan yana
+        btn_col=tk.Frame(file_card,bg=C["BG3"]); btn_col.pack(side="left")
+        self._mkbtn(btn_col,"📂 Launcher",
+            lambda:self._pick_exe("Launcher"),
+            C["BG4"],C["ACCENT"],font=("Segoe UI",8,"bold")).pack(side="left",padx=(0,3))
+        self._mkbtn(btn_col,"📂 sro_client",
+            lambda:self._pick_exe("sro_client"),
+            C["BG4"],C["BLUE"],font=("Segoe UI",8,"bold")).pack(side="left")
+
+        # Seçili dosya adı göster
+        self.selected_file_lbl=tk.Label(c,text="",bg=C["BG3"],fg=C["FG3"],
+            font=("Segoe UI",8),anchor="w")
+        self.selected_file_lbl.pack(anchor="w",pady=(0,8))
+        self._update_selected_file_lbl()
+
+        tk.Frame(c,bg=C["BORDER"],height=1).pack(fill="x",pady=8)
+
+        # ── Kullanıcı adı ──
+        ur=tk.Frame(c,bg=C["BG3"]); ur.pack(fill="x",pady=3)
+        tk.Label(ur,text="Kullanıcı Adı:" if self.lang=="tr" else "Username:",
+            bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",9),width=lbl_w,anchor="w").pack(side="left")
+        self.autologin_user_var=tk.StringVar(value=self.settings.get("autologin_user",""))
+        tk.Entry(ur,textvariable=self.autologin_user_var,bg=C["BG"],fg=C["FG"],
+            insertbackground=C["FG"],font=("Consolas",9),relief="flat",
+            highlightthickness=1,highlightbackground=C["BORDER"]).pack(side="left",fill="x",expand=True,padx=6,ipady=4)
+
+        # ── Şifre ──
+        pr=tk.Frame(c,bg=C["BG3"]); pr.pack(fill="x",pady=3)
+        tk.Label(pr,text="Şifre:" if self.lang=="tr" else "Password:",
+            bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",9),width=lbl_w,anchor="w").pack(side="left")
+        self.autologin_pass_var=tk.StringVar(value=self.settings.get("autologin_pass",""))
+        self.pass_entry=tk.Entry(pr,textvariable=self.autologin_pass_var,bg=C["BG"],fg=C["FG"],
+            insertbackground=C["FG"],font=("Consolas",9),relief="flat",show="●",
+            highlightthickness=1,highlightbackground=C["BORDER"])
+        self.pass_entry.pack(side="left",fill="x",expand=True,padx=6,ipady=4)
+        self.show_pass_var=tk.BooleanVar(value=False)
+        tk.Checkbutton(pr,text="👁",variable=self.show_pass_var,
+            command=self._toggle_pass_show,bg=C["BG3"],fg=C["FG2"],
+            selectcolor=C["BG3"],activebackground=C["BG3"],
+            highlightthickness=0,cursor="hand2").pack(side="left",padx=4)
+
+        # ── Karakter Slot ──
+        cr=tk.Frame(c,bg=C["BG3"]); cr.pack(fill="x",pady=3)
+        tk.Label(cr,text="Karakter Slot:" if self.lang=="tr" else "Char Slot:",
+            bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",9),width=lbl_w,anchor="w").pack(side="left")
+        self.autologin_char_var=tk.StringVar(value=self.settings.get("autologin_char","1"))
+        char_frame=tk.Frame(cr,bg=C["BG3"]); char_frame.pack(side="left",padx=6)
+        for i in range(1,6):
+            tk.Radiobutton(char_frame,text=f"  {i}  ",variable=self.autologin_char_var,
+                value=str(i),bg=C["BG3"],fg=C["FG"],selectcolor=C["ACCENT"],
+                activebackground=C["BG3"],activeforeground=C["FG"],
+                highlightthickness=0,cursor="hand2",
+                font=("Segoe UI",9,"bold")).pack(side="left",padx=2)
+
+        # ── Bekleme süresi ──
+        dr=tk.Frame(c,bg=C["BG3"]); dr.pack(fill="x",pady=3)
+        tk.Label(dr,text="Bekleme (sn):" if self.lang=="tr" else "Wait (sec):",
+            bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",9),width=lbl_w,anchor="w").pack(side="left")
+        self.autologin_delay_var=tk.StringVar(value=self.settings.get("autologin_delay","5"))
+        tk.Entry(dr,textvariable=self.autologin_delay_var,bg=C["BG"],fg=C["FG"],
+            insertbackground=C["FG"],font=("Consolas",9),relief="flat",
+            highlightthickness=1,highlightbackground=C["BORDER"],width=5).pack(side="left",padx=6,ipady=4)
+        tk.Label(dr,text="← Launcher açıldıktan sonra kaç sn beklensin" if self.lang=="tr" else "← seconds to wait after file opens",
+            bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",8)).pack(side="left",padx=4)
+
+        # ── Kaydet ──
+        self.autologin_save_var=tk.BooleanVar(value=self.settings.get("autologin_save",False))
+        self._chk(c,"Bilgileri kaydet (şifre dahil)" if self.lang=="tr" else "Save credentials (including password)",
+            self.autologin_save_var)
+
+        # ── Butonlar ──
+        tk.Frame(c,bg=C["BORDER"],height=1).pack(fill="x",pady=10)
+        btn_row=tk.Frame(c,bg=C["BG3"]); btn_row.pack(fill="x",pady=(0,4))
+        self._mkbtn(btn_row,
+            "🔑  Oto Giriş Yap" if self.lang=="tr" else "🔑  Auto Login",
+            lambda:threading.Thread(target=self._do_autologin,daemon=True).start(),
+            "#0d2a20",C["GREEN"],font=("Segoe UI",11,"bold")).pack(side="left",ipadx=16,ipady=8)
+        self._mkbtn(btn_row,
+            "🚀 Sadece Başlat" if self.lang=="tr" else "🚀 Just Launch",
+            self._launch_game_simple,C["BG4"],C["BLUE"],
+            font=("Segoe UI",9,"bold")).pack(side="left",padx=8,ipady=8)
+
+        # ── Durum ──
+        self.autologin_status=tk.Label(c,text="",bg=C["BG3"],fg=C["FG2"],
+            font=("Segoe UI",9),wraplength=700,justify="left")
+        self.autologin_status.pack(anchor="w",pady=(8,0))
+
+        self._warn(sc,
+            "Şifrenizi kaydetmek güvenlik riski oluşturabilir. Başkalarıyla paylaşılan bilgisayarlarda kaydetmeyin." if self.lang=="tr" else
+            "Saving your password may pose a security risk. Do not save on shared computers.")
 
     def _build_launcher_tab(self):
         C,T = self.C,self.T
@@ -856,17 +950,18 @@ class ProNetFixer(tk.Tk):
         if not folder: return
         required=["sro_client.exe","elemon.exe","GameGuard.des","d3dx9_43.dll","ijl15.dll","mss32.dll","Silkroad.exe","Launcher.exe"]
         found=[f for f in required if os.path.exists(os.path.join(folder,f))]
-        missing=[f for f in required if f not in found]
         self.client_result.configure(state="normal"); self.client_result.delete("1.0","end")
         if found:
-            self.client_result.insert("end",f"Bulunan ({len(found)})\n","head")
+            header="Bulunan Dosyalar" if self.lang=="tr" else "Found Files"
+            self.client_result.insert("end",f"{header} ({len(found)})\n","head")
             for f in found: self.client_result.insert("end",f"  ✓ {f}\n","ok")
-        if missing:
-            self.client_result.insert("end",f"\nEksik ({len(missing)})\n","head")
-            for f in missing: self.client_result.insert("end",f"  ✕ {f}\n","miss")
-        if not missing: self.client_result.insert("end",f"\n{T['all_files_ok']}","ok")
+        if len(found)==len(required):
+            self.client_result.insert("end",f"\n{T['all_files_ok']}","ok")
+        elif len(found)==0:
+            msg="Klasörde tanınan dosya bulunamadı. Doğru klasörü seçtiğinizden emin olun." if self.lang=="tr" else "No recognized files found. Make sure you selected the correct folder."
+            self.client_result.insert("end",msg,"miss")
         self.client_result.configure(state="disabled")
-        self.log(f"Client: {len(found)} OK, {len(missing)} eksik.","ok" if not missing else "warn")
+        self.log(f"Client: {len(found)}/{len(required)} dosya bulundu.","ok" if len(found)==len(required) else "info")
 
     # ── DEFENDER ──────────────────────────────────────────────────────────────
     def _add_defender_folder(self,folder):
@@ -1020,55 +1115,139 @@ class ProNetFixer(tk.Tk):
                 self._mkbtn(row,"🗑",lambda n=name:self._delete_profile(n),"#2a1010",C["RED"],font=("Segoe UI",8,"bold")).pack(side="left",padx=2)
         except: pass
 
-    # ── SUNUCU ────────────────────────────────────────────────────────────────
-    def _add_server(self):
-        host=self.new_server_host.get().strip()
-        if not host: return
-        try: port=int(self.new_server_port.get())
-        except: port=15779
-        self.settings.setdefault("servers",[]).append({"name":host,"host":host,"port":port})
-        save_settings(self.settings); self.new_server_host.set(""); self._refresh_server_list()
+    # ── OTO LOGİN ─────────────────────────────────────────────────────────────
+    def _pick_exe(self, kind):
+        titles = {"Launcher":"Launcher .exe seçin","sro_client":"sro_client.exe seçin"}
+        f=filedialog.askopenfilename(
+            title=titles.get(kind,"Dosya seçin"),
+            filetypes=[("EXE Dosyaları","*.exe"),("Tümü","*.*")])
+        if f:
+            self.autologin_launcher_var.set(f)
+            self.launcher_var.set(f)
+            self.settings["autologin_launcher"]=f
+            self._update_selected_file_lbl()
+            self.log(f"{kind} seçildi: {os.path.basename(f)}","info")
 
-    def _refresh_server_list(self):
-        C,T=self.C,self.T
+    def _update_selected_file_lbl(self):
         try:
-            for w in self.server_list_frame.winfo_children(): w.destroy()
-            for i,srv in enumerate(self.settings.get("servers",[])):
-                row=tk.Frame(self.server_list_frame,bg=C["BG3"]); row.pack(fill="x",pady=3)
-                name=srv.get("name",srv.get("host","?"))
-                tk.Label(row,text=f"🖥 {name}",bg=C["BG3"],fg=C["FG"],font=("Segoe UI",9),width=22,anchor="w").pack(side="left")
-                tk.Label(row,text=f"{srv.get('host','')}:{srv.get('port','')}",
-                    bg=C["BG3"],fg=C["FG3"],font=("Consolas",8),width=26,anchor="w").pack(side="left")
-                status_lbl=tk.Label(row,text="—",bg=C["BG3"],fg=C["FG3"],font=("Segoe UI",8,"bold"),width=14)
-                status_lbl.pack(side="left",padx=8)
-                self._mkbtn(row,T["check_server"],
-                    lambda s=srv,l=status_lbl:self._run_bg(lambda:self._check_server(s,l)),
-                    C["BG4"],C["BLUE"],font=("Segoe UI",8,"bold")).pack(side="left",padx=4)
-                self._mkbtn(row,T["remove_server"],
-                    lambda idx=i:self._remove_server(idx),"#2a1010",C["RED"],font=("Segoe UI",8,"bold")).pack(side="left",padx=2)
+            p=self.autologin_launcher_var.get()
+            if p and os.path.exists(p):
+                self.selected_file_lbl.config(
+                    text=f"✓ {os.path.basename(p)}  —  {os.path.dirname(p)}",
+                    fg=self.C["GREEN"])
+            elif p:
+                self.selected_file_lbl.config(text=f"✕ Dosya bulunamadı: {p}",fg=self.C["RED"])
+            else:
+                self.selected_file_lbl.config(
+                    text="Henüz dosya seçilmedi." if self.lang=="tr" else "No file selected yet.",
+                    fg=self.C["FG3"])
         except: pass
 
-    def _remove_server(self,idx):
-        servers=self.settings.get("servers",[])
-        if 0<=idx<len(servers): servers.pop(idx)
-        save_settings(self.settings); self._refresh_server_list()
+    def _browse_autologin_launcher(self):
+        self._pick_exe("Launcher")
 
-    def _check_server(self,srv,lbl):
-        C,T=self.C,self.T
-        host=srv.get("host",""); port=int(srv.get("port",15779))
+    def _toggle_pass_show(self):
+        self.pass_entry.config(show="" if self.show_pass_var.get() else "●")
+
+    def _do_autologin(self):
+        import ctypes
+        exe    = self.autologin_launcher_var.get().strip()
+        user   = self.autologin_user_var.get().strip()
+        passwd = self.autologin_pass_var.get()
+        char   = self.autologin_char_var.get()
+        try: delay=int(self.autologin_delay_var.get())
+        except: delay=5
+
+        # Bilgileri kaydet
+        if self.autologin_save_var.get():
+            self.settings.update({
+                "autologin_launcher":exe,"autologin_user":user,
+                "autologin_pass":passwd,"autologin_char":char,
+                "autologin_delay":str(delay),"autologin_save":True
+            })
+            save_settings(self.settings)
+
+        if not exe:
+            self.after(0,lambda:self.autologin_status.config(
+                text="⚠ Launcher .exe seçilmedi!" if self.lang=="tr" else "⚠ Launcher .exe not selected!",
+                fg=self.C["RED"])); return
+        if not os.path.exists(exe):
+            self.after(0,lambda:self.autologin_status.config(
+                text=f"⚠ Dosya bulunamadı: {exe}",fg=self.C["RED"])); return
+        if not user:
+            self.after(0,lambda:self.autologin_status.config(
+                text="⚠ Kullanıcı adı boş!" if self.lang=="tr" else "⚠ Username is empty!",
+                fg=self.C["RED"])); return
+
+        self.after(0,lambda:self.autologin_status.config(
+            text=f"⏳ Launcher açılıyor…" if self.lang=="tr" else "⏳ Opening launcher…",
+            fg=self.C["YELLOW"]))
+        self.log(f"Oto giriş başlatıldı: {user}","info")
+
         try:
-            s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            s.settimeout(5)
-            result=s.connect_ex((host,port)); s.close()
-            if result==0:
-                self.after(0,lambda:lbl.config(text=T["online"],fg=C["GREEN"]))
-                self.log(f"{host}:{port} — {T['online']}","ok")
-            else:
-                self.after(0,lambda:lbl.config(text=T["offline"],fg=C["RED"]))
-                self.log(f"{host}:{port} — {T['offline']}","warn")
+            # Launcher'ı başlat
+            proc=subprocess.Popen([exe],cwd=os.path.dirname(exe))
+            self.log(f"Launcher açıldı, {delay} saniye bekleniyor…","info")
+            self.after(0,lambda:self.autologin_status.config(
+                text=f"⏳ Launcher açıldı, {delay}sn bekleniyor…",fg=self.C["YELLOW"]))
+            time.sleep(delay)
+
+            # pyautogui yoksa sadece subprocess ile dene
+            try:
+                import pyautogui
+                pyautogui.FAILSAFE=False
+                pyautogui.PAUSE=0.3
+
+                # Kullanıcı adı ve şifre gir
+                pyautogui.hotkey('ctrl','a')
+                pyautogui.typewrite(user,interval=0.05)
+                pyautogui.press('tab')
+                time.sleep(0.3)
+                pyautogui.hotkey('ctrl','a')
+                pyautogui.typewrite(passwd,interval=0.05)
+                pyautogui.press('enter')
+                time.sleep(3)
+
+                # Karakter seçimi (slot numarası kadar F tuşu veya klik)
+                slot=int(char)-1
+                self.log(f"Karakter slot {char} seçiliyor…","info")
+                for _ in range(slot): pyautogui.press('right')
+                time.sleep(0.5)
+                pyautogui.press('enter')
+
+                self.after(0,lambda:self.autologin_status.config(
+                    text="✓ Oto giriş tamamlandı!" if self.lang=="tr" else "✓ Auto login completed!",
+                    fg=self.C["GREEN"]))
+                self.log("Oto giriş tamamlandı!","ok")
+
+            except ImportError:
+                # pyautogui yoksa sadece launcher açıldı bildirimi
+                self.after(0,lambda:self.autologin_status.config(
+                    text="✓ Launcher açıldı. (Otomatik yazma için pyautogui gerekli)" if self.lang=="tr"
+                    else "✓ Launcher opened. (pyautogui required for auto-type)",
+                    fg=self.C["YELLOW"]))
+                self.log("Launcher açıldı. pyautogui kurulu değil, manuel giriş gerekiyor.","warn")
+
         except Exception as e:
-            self.after(0,lambda:lbl.config(text=T["offline"],fg=C["RED"]))
-            self.log(f"{host} bağlantı hatası: {e}","err")
+            self.after(0,lambda:self.autologin_status.config(text=f"✕ Hata: {e}",fg=self.C["RED"]))
+            self.log(f"Oto giriş hatası: {e}","err")
+
+    def _launch_game_simple(self):
+        exe=self.autologin_launcher_var.get().strip() or self.launcher_var.get().strip()
+        if not exe: messagebox.showwarning("Uyarı","Launcher .exe seçilmedi!"); return
+        if not os.path.exists(exe): messagebox.showerror("Hata",f"Dosya bulunamadı:\n{exe}"); return
+        try:
+            subprocess.Popen([exe],cwd=os.path.dirname(exe))
+            self.log(f"Launcher başlatıldı: {exe}","ok")
+            self.autologin_status.config(text="✓ Launcher başlatıldı!",fg=self.C["GREEN"])
+        except Exception as e:
+            self.log(f"Başlatma hatası: {e}","err")
+
+    # ── SUNUCU (eski - kaldırıldı, uyumluluk için boş bırakıldı) ──────────────
+    def _add_server(self): pass
+    def _refresh_server_list(self): pass
+    def _remove_server(self,idx): pass
+    def _check_server(self,srv,lbl): pass
 
     # ── PING MONİTÖR ──────────────────────────────────────────────────────────
     def _toggle_ping_monitor(self):
