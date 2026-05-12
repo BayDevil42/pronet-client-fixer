@@ -21,8 +21,8 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: PyInstaller Kur
-      run: pip install pyinstaller
+    - name: PyInstaller ve Bağımlılıklar Kur
+      run: pip install pyinstaller pyautogui
 
     - name: EXE Derle
       run: |
@@ -36,7 +36,8 @@ jobs:
           --hidden-import=tkinter.ttk `
           --hidden-import=tkinter.filedialog `
           --hidden-import=tkinter.messagebox `
-          --hidden-import=tkinter.scrolledtext `
+          --hidden-import=pyautogui `
+          --hidden-import=pynput `
           --uac-admin `
           pronet_client_fixer.py
 
