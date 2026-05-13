@@ -294,6 +294,13 @@ class ProNetFixer(tk.Tk):
         admin_text  = f"● {T['admin']}" if is_admin() else f"● {T['no_admin']}"
         tk.Label(right,text=admin_text,bg=C["BG2"],fg=admin_color,font=("Segoe UI",8,"bold")).pack(side="left",padx=8)
 
+        # Site linki — başlık çubuğunda
+        site_btn = tk.Label(right,text="🌐 pronetnetwork.com",
+            bg=C["BG2"],fg=C["ACCENT"],font=("Segoe UI",8,"bold"),
+            cursor="hand2")
+        site_btn.pack(side="left",padx=(0,8))
+        site_btn.bind("<Button-1>",lambda e:webbrowser.open("https://pronetnetwork.com"))
+
         # ── Klasör satırı ──
         frow = tk.Frame(self,bg=C["BG2"],height=38)
         frow.pack(fill="x")
@@ -321,7 +328,7 @@ class ProNetFixer(tk.Tk):
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both",expand=True)
 
-        tabs = ["defender","dep","deps","client","wv2","tools","network","server","launcher","help"]
+        tabs = ["defender","dep","deps","client","wv2","tools","network","help"]
         self.tabs = {}
         for name in tabs:
             f = ttk.Frame(self.nb)
@@ -335,8 +342,6 @@ class ProNetFixer(tk.Tk):
         self._build_webview2_tab()
         self._build_tools_tab()
         self._build_network_tab()
-        self._build_server_tab()
-        self._build_launcher_tab()
         self._build_help_tab()
 
         # ── Log ──
@@ -357,6 +362,9 @@ class ProNetFixer(tk.Tk):
         bot.pack(fill="x",side="bottom")
         self._mkbtn(bot,T["scan"],self._scan_all,C["BG3"],C["FG2"]).pack(side="left",padx=(10,4),pady=8)
         self._mkbtn(bot,T["revert"],self._revert,"#2a1010",C["RED"]).pack(side="left",padx=4,pady=8)
+        self._mkbtn(bot,"🌐 ProNet Network",
+            lambda:webbrowser.open("https://pronetnetwork.com"),
+            "#0a1020",C["BLUE"],font=("Segoe UI",9,"bold")).pack(side="left",padx=4,pady=8)
         self._mkbtn(bot,T["close"],self.quit,C["BG3"],C["FG2"]).pack(side="right",padx=10,pady=8)
         self._mkbtn(bot,T["start"],self._run_setup,"#0d3320",C["GREEN"],font=("Segoe UI",10,"bold")).pack(side="right",padx=4,pady=8,ipadx=10)
 
